@@ -1,0 +1,154 @@
+#!/usr/bin/env python3
+import rospy
+import numpy as np
+import nav_msgs.msg
+import geometry_msgs.msg
+import sensor_msgs.msg
+import multiprocessing as mp
+import std_msgs.msg
+import mpc_util
+import time
+import tf2_ros, tf2_geometry_msgs
+
+class ModelPredictiveControl:
+    def __init__(self) :
+        rospy.init_node("model_predictive_control")
+
+        #params
+        self.distance_between_objects_points_to_accept = rospy.get_param("~distance_between_objects_points_to_accept", 0.35) # [m]
+        self.distance_between_objects_points = rospy.get_param("~distance_between_objects_points", 2.5)  # [m]
+        self.time_between_controllers = rospy.get_param("~time_between_controllers", 1.0) # [s] 
+        self.object_point_survive_time = rospy.get_param("~object_point_survive_time", 15.0)   # [s]
+        self.max_num_obstacles = rospy.get_param("~max_num_obstacles", 50)
+        self.command_future_view = rospy.get_param("~command_future_view", 12)
+        self.Ts = rospy.get_param("~Ts", 0.2)
+        self.distance_to_goal = rospy.get_param("~distance_to_goal", 0.5)
+        self.frame_id_mpc = rospy.get_param("~frame_id_mpc", "odom")
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.mpc_util = mpc_util.MPCUtil()
+        self.model = self.mpc_util.get_model(self.Ts)
+        
+        self.new_goal = False
+        self.goal = None
+        self.odom = []
+        self.obstacles = []
+
+        # Subscribers
+        self.odometry_sub = rospy.Subscriber("/odometry/filtered", nav_msgs.msg.Odometry, self.onReceiveOdometry)
+        self.goal_sub = rospy.Subscriber("/goal", geometry_msgs.msg.PoseStamped, self.onReceiveGoal)
+        self.obstacles_sub = rospy.Subscriber("/scan_polar_map", sensor_msgs.msg.LaserScan, self.onReceiveObstacles)
+
+        # Publishers
+        self.plan_pub = rospy.Publisher("/mpc_plan", nav_msgs.msg.Path, queue_size=1)
+        self.pub_result = rospy.Publisher("/goal_reached", std_msgs.msg.Bool, queue_size=1)
+
+    def onReceiveOdometry(self, msg):
+        # Process odometry data
+    
+        self.odom = self.mpc_util.convert_pose_data_to_state(msg.pose)
+        self.odom[3] = msg.twist.twist.linear.x 
+        self.odom[4] = msg.twist.twist.angular.z 
+
+        return
+    
+
+    def onReceiveGoal(self, msg):
+        if(msg.header.frame_id != self.frame_id_mpc):
+            rospy.logwarn("Goal frame id does not match the MPC frame id. Expected: {}, Received: {}".format(self.frame_id_mpc, msg.header.frame_id))
+            return
+        self.goal = self.mpc_util.convert_pose_data_to_state(msg)
+        self.new_goal = True
+        rospy.loginfo("New goal received: {}".format(self.goal))
+        
+        return
+    
+    def onReceiveObstacles(self, msg):
+        laser_ranges = np.array(msg.ranges)
+        obstacles_list = []
+        current_time = time.time()
+
+        for indx, laser in enumerate(laser_ranges):
+            #se serve ridurre il numero di indici da considerare
+            if np.isinf(laser) or np.isnan(laser):
+                continue
+            
+            # Convert polar coordinates to Cartesian coordinates
+            angle = indx * np.pi / 180.0
+            x = laser * np.cos(angle)
+            y = laser * np.sin(angle)
+
+
+
+            #convert to odom frame id
+            transform = self.tf_buffer.lookup_transform("odom", msg.header.frame_id, rospy.Time(0), rospy.Duration(1.0))
+            obj_in_odom = tf2_geometry_msgs.do_transform_point(geometry_msgs.msg.PointStamped(header=msg.header, point=geometry_msgs.msg.Point(x=x, y=y, z=0)), transform)
+
+            new_obj = [obj_in_odom.point.x, obj_in_odom.point.y, current_time]
+            obstacles_list.append(new_obj)
+
+        self.obstacles = obstacles_list #contains at most 360 values, 4m of range max
+
+        return
+
+                
+
+    def remove_old_obstacles(self):
+        if(not self.obstacles):
+            return    
+        new_set = []
+        current_time = time.time()
+        for obj in self.obstacles:
+            if ( ( current_time - obj[2] ) < self.object_point_survive_time ):
+                new_set.append( obj )
+        self.obstacles = new_set
+
+        return
+
+
+    def run(self):
+        rate = rospy.Rate(1/self.Ts) 
+        last_mpc = time.time()-2
+
+        while not rospy.is_shutdown():
+            
+            if(len(self.odom)<1 or len(self.obstacles)<1):
+                rospy.logwarn("Waiting for odometry and obstacles data...")
+                rospy.sleep(1.0)
+                continue
+
+
+            if(self.new_goal):
+                self.remove_old_obstacles()
+                if(time.time() - last_mpc > self.time_between_controllers):
+                    mpc = self.mpc_util.get_controller(self.goal, self.Ts, self.model, self.obstacles, self.odom)
+                    last_mpc = time.time()
+                    #rospy.loginfo("MPC controller created")
+            
+                if(np.linalg.norm(self.odom[:2]-self.goal[:2])> self.distance_to_goal):
+                    #rospy.loginfo("Running...")
+                    mpc.make_step(self.odom)
+                    self.plan_pub.publish(self.mpc_util.get_local_plan(mpc.data, self.frame_id_mpc))
+                else:
+                    rospy.loginfo("Goal reached, stopping MPC.")
+                    self.pub_result.publish(std_msgs.msg.Bool(data=True))
+                    self.new_goal = False
+
+            rate.sleep()
+
+        return
+
+
+
+def main():
+    
+    mp.set_start_method('spawn')
+    mpc = ModelPredictiveControl()
+    mpc.run()
+
+
+
+if __name__ == '__main__':
+    main()

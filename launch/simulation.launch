@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="static_map" default="false"/>
+    <arg name="world_name" default="worlds/empty.world"/>
+
+    <!-- start simulated world -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+      <arg name="world_name" value="$(find wheelchair_iaslab_gazebo)/worlds/ias_lab_room.world"/> <!-- world_name is wrt GAZEBO_RESOURCE_PATH environment variable -->
+      <arg name="paused" value="false"/>
+      <arg name="use_sim_time" value="true"/>
+      <arg name="gui" value="true"/>
+      <arg name="headless" value="false"/>
+      <arg name="debug" value="false"/>
+    </include>
+
+    <!-- RVIZ  
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wheelchair_iaslab_gazebo)/worlds/empty_lab.rviz" required="true"/>-->
+
+    <!-- anything related to the wheelchair model -->
+    <include file="$(find wheelchair_iaslab_gazebo)/launch/spawn_wheelchair.launch">
+      <arg name="robot_id" value="wheelchair_iaslab" />
+    </include>
+
+    <include file="$(find wheelchair_iaslab_description)/launch/urdf_sensor.launch"/> 
+    
+    <!-- odometry ONLY for simulation -->
+    <node pkg="robot_localization" type="ekf_localization_node" name="ekf" clear_params="true">
+        <rosparam command="load" file="$(find wheelchair_iaslab_odometry)/params/ekf.yaml" />
+    </node>
+
+    <!-- costmap details -->
+    <rosparam file="$(find nav_master)/config/local_costmap.yaml" command="load" ns="local_costmap" />
+
+    <node name="local_costmap" pkg="nav_master" type="local_costmap" output="screen">
+        <param name="global_frame" value="odom"/>
+        <param name="robot_base_frame" value="base_footprint"/>     
+    </node>
+
+
+</launch>

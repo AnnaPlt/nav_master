@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- description -->
+        <include file="$(find wheelchair_iaslab_description)/launch/urdf_sensor.launch"/> 
+    
+    <!-- Sensors -->
+        <arg name="angle_min"          default="2.1118484"/> 
+        <arg name="angle_max"          default="1.570796327"/>
+
+        <!-- Hokuyo left -->
+        <node name="left_urg_node" pkg="urg_node" type="urg_node" output="screen">
+            <param name="frame_id"         value="/hokuyo_laser_link_left"/>  
+            <param name="serial_port"      value="/dev/hokuyo_H2156238" />
+            <param name="serial_baud"      value="115200" />
+            <param name="calibrate_time"   value="true" />
+            <param name="angle_max"        value="$(arg angle_max)"  />
+            <param name="angle_min"        value="-$(arg angle_min)" />
+            <param name="publish_intensity" value="true"/>
+            <remap from="scan"             to="scan_left" />
+
+        </node>
+
+        <!-- Hokuyo right -->
+        <node name="right_urg_node" pkg="urg_node" type="urg_node" output="screen">
+            <param name="frame_id"         value="/hokuyo_laser_link_right"/>  
+            <param name="serial_port"      value="/dev/hokuyo_H1853627" />
+            <param name="serial_baud"      value="115200" />
+            <param name="calibrate_time"   value="true" />
+            <param name="angle_min"        value="-$(arg angle_max)"  />
+            <param name="angle_max"        value="$(arg angle_min)"   />
+            <param name="publish_intensity" value="true"/>
+            <remap from="scan"             to="scan_right" />
+        </node>
+    
+    <!-- Odometry-->
+        <include file="$(find wheelchair_iaslab_odometry)/launch/odometry.launch"/> 
+
+    <!-- costmap -->
+        <rosparam file="$(find nav_master)/config/local_costmap_st.yaml" command="load" ns="local_costmap" />
+
+        <node name="local_costmap" pkg="nav_master" type="local_costmap" output="screen">
+            <param name="global_frame" value="odom"/>
+            <param name="robot_base_frame" value="base_footprint"/>     
+        </node>
+
+    <!-- djoy for mux-->
+        <node name="joy" pkg="joy" type="joy_node" output="screen"/>
+        <node name="djoy" pkg="wheelchair_iaslab_control" type="djoy.py" />
+
+    <!-- Twist Mux -->
+        <node pkg="twist_mux" type="twist_mux" name="twist_mux">
+            <rosparam command="load" file="$(find wheelchair_iaslab_control)/config/twist_mux.yaml" />
+            <remap from="cmd_vel_out" to="cmd_vel"/>
+        </node>
+        
+
+    <!--rviz-->
+        <node name="rviz" pkg="rviz" type="rviz" args="-d $(find nav_master)/init.rviz" required="true"/>
+
+    <!-- reconfigure params -->
+        <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" />
+
+</launch>

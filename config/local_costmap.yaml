@@ -1,0 +1,56 @@
+global_frame: odom
+robot_base_frame: base_footprint
+
+
+plugins:
+ - {name: obstacle_layer,     type: "costmap_2d::ObstacleLayer"} 
+ - {name: inflation_layer,      type: "costmap_2d::InflationLayer"}
+
+footprint: [[-0.63, -0.30], [-0.63, 0.30], [0.73,0.30], [0.73, -0.30]] #[[-0.30, -0.63], [-0.30, 0.63], [0.30,0.63], [0.30, -0.63]] # if the robot is not circular
+#footprint_padding: 0.01
+
+update_frequency: 10.0     # Hz (how often the costmap is updated)
+publish_frequency: 30.0    # Hz (how often the costmap is published)
+transform_tolerance: 0.5  # Allowable TF delay in seconds
+
+width: 10.0    #in metri = 200 celle
+height: 10.0   #in metri = 200 celle
+
+resolution: 0.05          # Cell size in meters (5 cm per cell)
+rolling_window: true      # Local map moves with the robot
+always_send_full_costmap: true
+
+
+
+
+obstacle_layer:
+  obstacle_range: 5.5
+  raytrace_range: 10.0 
+  observation_sources:  laser_left laser_right
+  
+  laser_left:
+    data_type: LaserScan
+    topic: /scan_left
+    marking: true
+    clearing: true
+    expected_update_rate: 0.15   #default 0, if not updating at this rate at least, remove from buffer
+    observation_persistence: 0.1 #default 0, use all measurements taken during now-value, 0=latest
+    inf_is_valid: false          #default false, for laser scans
+    
+
+  laser_right:
+    data_type: LaserScan
+    topic: /scan_right
+    marking: true
+    clearing: true
+    expected_update_rate: 0.15    #default 0, if not updating at this rate at least, remove from buffer
+    observation_persistence: 0.1 #default 0, use all measurements taken during now-value, 0=latest
+    inf_is_valid: false          #default false, for laser scans
+    
+
+
+#cost_scaling_factor and inflation_radius were now moved to the inflation_layer ns
+inflation_layer:
+  inflation_radius: 0.1   # max distance from an obstacle at which costs are incurred for planning paths (light blue area around obstacles)
+  cost_scaling_factor:  1.0  # exponential rate at which the obstacle cost drops off (default: 10) 
+
