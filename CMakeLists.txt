@@ -131,6 +131,7 @@ target_link_libraries(main
   navigationStack
   pathSampler
 )
+
 target_link_libraries(goal_send 
   ${catkin_LIBRARIES}
 )

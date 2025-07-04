@@ -223,29 +223,29 @@ void NavigationStack::run(){
             /*if(new_plan){
                 ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
                 tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
-            }
+            }*/
             // REPULSORI
             for(const auto& vs : this->vs_vector){  // now the vs vector is 1 element=footprint
                 vs->ap_field.empty();
                 vs->setRepellors(polar_map);
                 lin_vel_rep += vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
-                ang_vel_rep += vs->getAngularVelocity();
+                //ang_vel_rep += vs->getAngularVelocity();
             }
             //ATTRATTORI
-            for(const auto& vs : this->vs_vector){  // now the vs vector is 1 element=footprint
+            /*for(const auto& vs : this->vs_vector){  // now the vs vector is 1 element=footprint
                 vs->ap_field.empty();
                 vs->setAttractor(goal_in_fp);
                 //lin_vel_attr += vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
                 ang_vel_attr += vs->getAngularVelocity();
-            }
+            }*/
             
             double linear_velocity = lin_vel_rep*linear_strength;
             //double linear_velocity = lin_vel_attr;
             //double linear_velocity = std::max(0.0, normalizeLinearVelocities(lin_vel_rep, lin_vel_attr));
 
             //Normalizzo tra -1 e 1 la velocità angolare
-            double angular_velocity = (2*((ang_vel_rep-(-maxAngularVelocity))/(2*maxAngularVelocity))-1.0) 
-                + 0.5*(2*((ang_vel_attr-(-potential_strength))/(2*potential_strength))-1.0); //normalizzo tra -1 e 1 
+            //double angular_velocity = (2*((ang_vel_rep-(-maxAngularVelocity))/(2*maxAngularVelocity))-1.0) 
+              //  + 0.5*(2*((ang_vel_attr-(-potential_strength))/(2*potential_strength))-1.0); //normalizzo tra -1 e 1 
                 //se ho 1 solo attrattore la velocità massima angolare è uguale a potential_strength (non c'è somma tra più pot_objects) 
 
             if(ns_active){
@@ -256,9 +256,9 @@ void NavigationStack::run(){
                 else{
                     cmd_vel.linear.x = 0.0;
                 }
-                cmd_vel.angular.z = angular_velocity*enhancer;
+                //cmd_vel.angular.z = angular_velocity*enhancer;
                 velocity_pub_.publish(cmd_vel);
-            }*/
+            }
             new_costmap = false;
             
 

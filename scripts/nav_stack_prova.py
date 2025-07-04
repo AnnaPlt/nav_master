@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rospy
 import sensor_msgs.msg
 import numpy as np
@@ -10,14 +12,15 @@ class pythonClass:
     def __init__(self):
         self.polar_map = None
         self.sub_polar_map = rospy.Subscriber("/scan_polar_map", sensor_msgs.msg.LaserScan, self.set_repellors)
-        self.pub_omega = rospy.Publisher("/cmd_vel_py", Twist, queue_size=1)
+        self.pub_omega = rospy.Publisher("/cmd_vel", Twist, queue_size=1)
         self.sub_plan = rospy.Subscriber("/sampled_plan", Path, self.set_goal)
+        self.sub_joy = rospy.Subscriber("/joy", sensor_msgs.msg.Joy, self.set_joy)
         self.ap_field = []
         self.nsett = 5
         self.step = 90/self.nsett
         self.t_rad = np.pi/180.0
-        self.sigma = 1.0 
-        self.min_distance = 0.5
+        self.sigma = 2*np.pi/3 
+        self.min_distance = 0.35
         self.decay = 0.7
         self.kmax_points = []
         self.kmax = self.setKmax()
@@ -26,6 +29,12 @@ class pythonClass:
         self.listener = tf2_ros.TransformListener(self.buffer)
         self.new_goal = False
         self.goal = None
+        self.ns_active = False
+
+
+    def set_joy(self, msg):
+        if msg.buttons[1] == 1:
+            self.ns_active = not self.ns_active
 
 
     def set_repellors(self, msg):
@@ -33,11 +42,11 @@ class pythonClass:
         self.polar_map = msg.ranges
 
         #chiamata all'arrivo di polar map
-        for i in range(0, len(self.polar_map), self.step): 
+        for i in np.arange(0, len(self.polar_map), self.step): 
             min_dist = np.inf
             index = 0
-            for j in range(0, self.step):
-                d = self.polar_map[i+j]
+            for j in np.arange(0, self.step):
+                d = self.polar_map[int(i+j)]
                 if d <= min_dist:
                     if np.abs(self.kernel(i+j, self.sigma)) < np.abs(self.kernel(index, self.sigma)):
                         continue
@@ -128,7 +137,7 @@ class pythonClass:
             omega_attr = self.lambda_func(obj[1], self.min_distance, self.decay)*self.kernel(obj[0], self.sigma)
             omega_attr = (self.delta*omega_attr*2*self.nsett)/self.kmax
 
-        omega = omega_rep + omega_attr
+        omega = (omega_rep + omega_attr)*0.3
         return omega
 
 
@@ -136,15 +145,21 @@ class pythonClass:
     def run(self):
         rate = rospy.Rate(10)
         while not rospy.is_shutdown():
-            if(len(self.ap_field)==0):
-                rospy.logwarn("Waiting for repellors data...")
-                rospy.sleep(1.0)
-                continue
-            omega = self.setVelocity()
-            msg = Twist()
-            msg.angular.z = omega
-            self.pub_omega.publish(msg)
-            rate.sleep()
+            if(self.ns_active):
+                if(len(self.ap_field)==0):
+                    rospy.logwarn("Waiting for repellors data...")
+                    rospy.sleep(1.0)
+                    continue
+                omega = self.setVelocity()
+                msg = Twist()
+                msg.angular.z = omega
+                self.pub_omega.publish(msg)
+                rate.sleep()
+            else:
+                msg = Twist()
+                msg.angular.z = 0
+                self.pub_omega.publish(msg)
+                rate.sleep()
 
 def main():
     rospy.init_node('nav_stack', anonymous=True)
