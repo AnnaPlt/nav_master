@@ -45,6 +45,7 @@ class pythonClass:
         for i in np.arange(0, len(self.polar_map), self.step): 
             min_dist = np.inf
             index = 0
+
             for j in np.arange(0, self.step):
                 d = self.polar_map[int(i+j)]
                 if d <= min_dist:
@@ -52,6 +53,7 @@ class pythonClass:
                         continue
                     min_dist = d
                     index = i+j
+            
             if(min_dist < np.inf):
                 angle = index * self.t_rad
                 if angle >= np.pi:
@@ -129,13 +131,13 @@ class pythonClass:
         omega_rep = 0
         for obj in self.ap_field:
             v = obj[2]*self.lambda_func(obj[1], self.min_distance, self.decay)*self.kernel(obj[0], self.sigma)
-            v = (v*2*self.nsett)/self.kmax
+            v = v/(2*self.nsett)
             omega_rep+=v
 
         omega_attr = 0
         if(self.new_goal):
             omega_attr = self.lambda_func(obj[1], self.min_distance, self.decay)*self.kernel(obj[0], self.sigma)
-            omega_attr = (self.delta*omega_attr*2*self.nsett)/self.kmax
+            omega_attr = omega_attr*self.delta
 
         omega = (omega_rep + omega_attr)*0.3
         return omega
