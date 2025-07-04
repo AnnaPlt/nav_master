@@ -220,7 +220,7 @@ void NavigationStack::run(){
             double lin_vel_attr = 0.0;
             double ang_vel_attr = 0.0;
             geometry_msgs::PoseStamped goal_in_fp;
-            if(new_plan){
+            /*if(new_plan){
                 ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
                 tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
             }
@@ -258,7 +258,7 @@ void NavigationStack::run(){
                 }
                 cmd_vel.angular.z = angular_velocity*enhancer;
                 velocity_pub_.publish(cmd_vel);
-            }
+            }*/
             new_costmap = false;
             
 
