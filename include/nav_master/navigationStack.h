@@ -16,7 +16,10 @@
 #include <signal.h>
 #include "artificial_potential_fields/virtualSensor.h"
 #include "pathSampler.h"
-#include </home/braingear/anna_ws/devel/include/artificial_potential_fields/apfParamsConfig.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include </mnt/data/anna/anna_ws/devel/include/artificial_potential_fields/apfParamsConfig.h>
 
 
 
@@ -40,7 +43,7 @@ namespace navigation_stack{
 
             ros::NodeHandle nh_;
             std::vector<float> polar_map;
-            std::vector<VirtualSensor*> vs_vector;
+            VirtualSensor* vs;
             nav_msgs::Path sampled_plan;
             PathSampler path_sampler;
 
@@ -80,13 +83,12 @@ namespace navigation_stack{
             //reconfigurable params and derivatives
             int delta;
             int cost_obstacle;
-            double potential_strength;
             double sigma;
             double maxAngularVelocity;
             double maxLinearVelocityRepulsors;
             double max_radius;
-            double linear_strength;
-            double enhancer;
+            double linear_scaling;
+            double angular_scaling;
             double sampling_distance;
             double max_angle;
             double min_distance;

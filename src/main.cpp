@@ -1,5 +1,7 @@
 #include <ros/ros.h>
-#include <nav_master/navigationStack.h>
+#include "navigationStack.cpp"
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <signal.h>
 
 

@@ -1,6 +1,7 @@
 #include "../include/nav_master/navigationStack.h"
 
 
+
 namespace navigation_stack{
 
 NavigationStack::NavigationStack(ros::NodeHandle nh) : nh_(nh), tfListener(tf_), new_costmap(false){
@@ -29,30 +30,26 @@ NavigationStack::~NavigationStack(){
 
 
 void NavigationStack::updateParams(artificial_potential_fields::apfParamsConfig &config) {
-    delta = config.delta;
-    rod = config.rate_of_decay;
+    delta = config.delta_polarmap;
     cost_obstacle = config.obstacle_cost_threshold;
     VS_frame_id = config.virtual_sensor_reference_frame;
-    potential_strength = config.potential_strength;
-    sigma = config.sigma;
     max_radius = config.max_radius;
-    linear_strength = config.strength_linear_velocity;
-    enhancer = config.enhancer_angular_velocity;
     sampling_distance = config.sampling_distance;
     max_angle = config.max_angle;
-    min_distance = config.min_distance;
-    setMaxVelocities();
+    linear_scaling = config.scaling_factor_linear_velocity;
+    angular_scaling = config.scaling_factor_angular_velocity;
+    //setMaxVelocities();
 }
 
 void NavigationStack::configCallback(artificial_potential_fields::apfParamsConfig &config, uint32_t level) {
 
     updateParams(config); 
-    vs_vector[0]->setParams(config); // da cambiare se passiamo più vs
+    vs->setParams(config); // da cambiare se passiamo più vs
 }
 
 
 void NavigationStack::init_VirtualSensors(){
-    vs_vector.push_back(new VirtualSensor(VS_frame_id));
+    vs = new VirtualSensor(VS_frame_id);
 }
 
 void NavigationStack::init_Communication(){
@@ -69,14 +66,14 @@ void NavigationStack::init_Communication(){
 void NavigationStack::setMaxVelocities(){
 
     const double delta_alpha = M_PI / 180.0;
-    double result_angular = 0.0;
+    /*double result_angular = 0.0;
 
     for (double alpha = -M_PI; alpha < M_PI; alpha += delta_alpha) {
-        double f = std::sin(alpha) * std::cos(alpha) * std::exp(- (alpha * alpha) / (2 * sigma * sigma));
+        double f = vs->ap_field.kernel(alpha);
         result_angular += std::abs(f);
     }
-    maxAngularVelocity = result_angular * potential_strength;
-    //ROS_INFO("max Angular Velocity set to: %f", maxAngularVelocity);
+    maxAngularVelocity = result_angular;
+    //ROS_INFO("max Angular Velocity set to: %f", maxAngularVelocity);*/
 
     double min_radius = 1.2;
     double result_linear = 0.0;
@@ -205,7 +202,7 @@ double NavigationStack::normalizeLinearVelocities(double lin_vel_rep, double lin
 
 void NavigationStack::run(){
 
-    ros::Rate r(30);
+    ros::Rate r(5);
     ros::Time last_map = ros::Time::now();
     ros::Time last_goal = ros::Time::now();
     while(ros::ok()){
@@ -215,48 +212,40 @@ void NavigationStack::run(){
             buildPolarMap();
             util_sendLaserMsg();
 
-            double lin_vel_rep = 0.0;
-            double ang_vel_rep = 0.0;
-            double lin_vel_attr = 0.0;
-            double ang_vel_attr = 0.0;
+            double lin_vel = 0.0;
+            double ang_vel = 0.0;
+
             geometry_msgs::PoseStamped goal_in_fp;
-            /*if(new_plan){
+            if(new_plan){
                 ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
                 tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
-            }*/
-            // REPULSORI
-            for(const auto& vs : this->vs_vector){  // now the vs vector is 1 element=footprint
-                vs->ap_field.empty();
-                vs->setRepellors(polar_map);
-                lin_vel_rep += vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
-                //ang_vel_rep += vs->getAngularVelocity();
             }
-            //ATTRATTORI
-            /*for(const auto& vs : this->vs_vector){  // now the vs vector is 1 element=footprint
-                vs->ap_field.empty();
-                vs->setAttractor(goal_in_fp);
-                //lin_vel_attr += vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
-                ang_vel_attr += vs->getAngularVelocity();
-            }*/
+            vs->emptySet();
+            vs->setRepellors(polar_map);
+            vs->setAttractors(goal_in_fp);
+            ang_vel = vs->getAngularVelocity();
             
-            double linear_velocity = lin_vel_rep*linear_strength;
+            lin_vel = vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
+
             //double linear_velocity = lin_vel_attr;
             //double linear_velocity = std::max(0.0, normalizeLinearVelocities(lin_vel_rep, lin_vel_attr));
 
-            //Normalizzo tra -1 e 1 la velocità angolare
-            //double angular_velocity = (2*((ang_vel_rep-(-maxAngularVelocity))/(2*maxAngularVelocity))-1.0) 
-              //  + 0.5*(2*((ang_vel_attr-(-potential_strength))/(2*potential_strength))-1.0); //normalizzo tra -1 e 1 
-                //se ho 1 solo attrattore la velocità massima angolare è uguale a potential_strength (non c'è somma tra più pot_objects) 
+            // + 0.5*(2*((ang_vel_attr-(-potential_strength))/(2*potential_strength))-1.0); //normalizzo tra -1 e 1 
+            //se ho 1 solo attrattore la velocità massima angolare è uguale a potential_strength (non c'è somma tra più pot_objects) 
 
             if(ns_active){
+                //ROS_INFO("ang_vel REP: %f, ang_vel ATTR: %f", ang_vel1, ang_vel2);
+
                 geometry_msgs::Twist cmd_vel;
                 if(new_plan){
-                    cmd_vel.linear.x = linear_velocity;
+                    ROS_INFO("got new plan");
+                    cmd_vel.linear.x = lin_vel*linear_scaling;
+                    //cmd_vel.linear.x = 0.0;
                 }
                 else{
                     cmd_vel.linear.x = 0.0;
                 }
-                //cmd_vel.angular.z = angular_velocity*enhancer;
+                cmd_vel.angular.z = ang_vel*angular_scaling;
                 velocity_pub_.publish(cmd_vel);
             }
             new_costmap = false;
