@@ -23,6 +23,7 @@
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
+#include <std_msgs/Float64MultiArray.h>
 #include </mnt/data/anna/anna_ws/devel/include/artificial_potential_fields/apfParamsConfig.h>
 
 
@@ -60,6 +61,7 @@ namespace navigation_stack{
             ros::Publisher goal_pub_;
             ros::Publisher plan_pub_;
             ros::Subscriber nav_result_sub_;
+            ros::Publisher matrix_pub;
             
 
             //costmap

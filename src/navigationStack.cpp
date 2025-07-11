@@ -62,6 +62,7 @@ void NavigationStack::init_Communication(){
     plan_pub_ = nh_.advertise<nav_msgs::Path>("/sampled_plan", 1);
     nav_result_sub_ = nh_.subscribe("/goal_reached", 1, &NavigationStack::onReceiveNavResult, this); // per ora lo uso per il toggle
     img_pub = nh_.advertise<sensor_msgs::Image>("/apf", 1);
+    matrix_pub = nh_.advertise<std_msgs::Float64MultiArray>("/matrix", 1);
 
 }
 
@@ -175,7 +176,7 @@ sensor_msgs::ImagePtr NavigationStack::eigenMatrixToImageMsg(const Eigen::Matrix
     // Normalizza valori in [0,255]
     double min = mat.minCoeff();
     double max = mat.maxCoeff();
-    Eigen::MatrixXd norm =  (mat.array() - min) / (max - min + 1e-8)*255;  // evita divisione per zero
+    Eigen::MatrixXd norm =  (mat.array() - min)*255;  // evita divisione per zero
     
     // Converti in cv::Mat mono 8 bit
     cv::Mat gray(mat.rows(), mat.cols(), CV_8UC1);
@@ -246,6 +247,25 @@ void NavigationStack::run(){
             vs->emptySet();
             vs->setRepellors(polar_map);
             Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
+            std_msgs::Float64MultiArray msg;
+
+            // riempi i dati: Eigen::MatrixXd è row-major o column-major, ma per semplicità:
+            for(int r = 0; r < omegaAll.rows(); ++r) {
+                for(int c = 0; c < omegaAll.cols(); ++c) {
+                    msg.data.push_back(omegaAll(r, c));
+                }
+            }
+
+            // opzionalmente: msg.layout.dim per indicare righe/colonne
+            msg.layout.dim.resize(2);
+            msg.layout.dim[0].label = "rows";
+            msg.layout.dim[0].size = omegaAll.rows();
+            msg.layout.dim[0].stride = omegaAll.rows() * omegaAll.cols();
+            msg.layout.dim[1].label = "cols";
+            msg.layout.dim[1].size = omegaAll.cols();
+            msg.layout.dim[1].stride = omegaAll.cols();
+
+            matrix_pub.publish(msg);
             //omegaAll = 2*(omegaAll.array() - omegaAll.minCoeff()) / (omegaAll.maxCoeff() - omegaAll.minCoeff())-1;
             /*std::ofstream file("matrice.csv");
             if (file.is_open()) {
@@ -262,10 +282,7 @@ void NavigationStack::run(){
                 std::cerr << "Impossibile aprire il file!" << std::endl;
             }*/
             ang_vel = vs->getAngularVelocity(omegaAll, 1.0);
-            sensor_msgs::ImagePtr msg = eigenMatrixToImageMsg(omegaAll);
-            msg->header.stamp = ros::Time::now();
-            msg->header.frame_id = "base_footprint";
-            img_pub.publish(msg);
+
             lin_vel = vs->getLinearVelocity();
             ROS_INFO("ang_vel 1: %f", ang_vel);
             //ROS_INFO("lin_vel 1: %f", lin_vel);
