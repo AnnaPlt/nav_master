@@ -38,11 +38,12 @@ void NavigationStack::updateParams(artificial_potential_fields::apfParamsConfig 
     max_angle = config.max_angle;
     linear_scaling = config.scaling_factor_linear_velocity;
     angular_scaling = config.scaling_factor_angular_velocity;
+    strength_attractors_angular_velocity = config.strength_attractors_angular_velocity;
     //setMaxVelocities();
 }
 
 void NavigationStack::configCallback(artificial_potential_fields::apfParamsConfig &config, uint32_t level) {
-
+    ROS_INFO("updating params");
     updateParams(config); 
     vs->setParams(config); // da cambiare se passiamo più vs
 }
@@ -60,6 +61,8 @@ void NavigationStack::init_Communication(){
     path_sub_ = nh_.subscribe("/mpc_plan", 1, &NavigationStack::onReceivePath, this); //non esiste questo topic al momento
     plan_pub_ = nh_.advertise<nav_msgs::Path>("/sampled_plan", 1);
     nav_result_sub_ = nh_.subscribe("/goal_reached", 1, &NavigationStack::onReceiveNavResult, this); // per ora lo uso per il toggle
+    img_pub = nh_.advertise<sensor_msgs::Image>("/apf", 1);
+
 }
 
 
@@ -168,6 +171,30 @@ void NavigationStack::buildPolarMap(){
 }
 
 
+sensor_msgs::ImagePtr NavigationStack::eigenMatrixToImageMsg(const Eigen::MatrixXd& mat) {
+    // Normalizza valori in [0,255]
+    double min = mat.minCoeff();
+    double max = mat.maxCoeff();
+    Eigen::MatrixXd norm =  (mat.array() - min) / (max - min + 1e-8)*255;  // evita divisione per zero
+    
+    // Converti in cv::Mat mono 8 bit
+    cv::Mat gray(mat.rows(), mat.cols(), CV_8UC1);
+    for(int r = 0; r < mat.rows(); ++r) {
+        for(int c = 0; c < mat.cols(); ++c) {
+            gray.at<uint8_t>(r, c) = static_cast<uint8_t>(norm(r, c));
+        }
+    }
+    //cv::flip(gray, gray, 0);
+    // Applica colormap per renderla colorata
+    cv::Mat color;
+    cv::applyColorMap(gray, color, cv::COLORMAP_JET); // puoi cambiare la mappa: COLORMAP_HOT, COLORMAP_PARULA, etc.
+
+    // Crea messaggio ROS (bgr8 perché OpenCV usa BGR di default)
+    return cv_bridge::CvImage(std_msgs::Header(), "bgr8", color).toImageMsg();
+}
+
+
+
 void NavigationStack::util_sendLaserMsg(){
     //build laser msgs
     sensor_msgs::LaserScan laser_msg;
@@ -202,7 +229,7 @@ double NavigationStack::normalizeLinearVelocities(double lin_vel_rep, double lin
 
 void NavigationStack::run(){
 
-    ros::Rate r(5);
+    ros::Rate r(2);
     ros::Time last_map = ros::Time::now();
     ros::Time last_goal = ros::Time::now();
     while(ros::ok()){
@@ -215,37 +242,59 @@ void NavigationStack::run(){
             double lin_vel = 0.0;
             double ang_vel = 0.0;
 
-            geometry_msgs::PoseStamped goal_in_fp;
-            if(new_plan){
-                ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
-                tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
-            }
+            
             vs->emptySet();
             vs->setRepellors(polar_map);
-            vs->setAttractors(goal_in_fp);
-            ang_vel = vs->getAngularVelocity();
+            Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
+            //omegaAll = 2*(omegaAll.array() - omegaAll.minCoeff()) / (omegaAll.maxCoeff() - omegaAll.minCoeff())-1;
+            /*std::ofstream file("matrice.csv");
+            if (file.is_open()) {
+                for (int i = 0; i < omegaAll.rows(); ++i) {
+                    for (int j = 0; j < omegaAll.cols(); ++j) {
+                        file << omegaAll(i, j);
+                        if (j != omegaAll.cols() - 1)
+                            file << ",";  // separatore
+                    }
+                    file << "\n";
+                }
+                file.close();
+            } else {
+                std::cerr << "Impossibile aprire il file!" << std::endl;
+            }*/
+            ang_vel = vs->getAngularVelocity(omegaAll, 1.0);
+            sensor_msgs::ImagePtr msg = eigenMatrixToImageMsg(omegaAll);
+            msg->header.stamp = ros::Time::now();
+            msg->header.frame_id = "base_footprint";
+            img_pub.publish(msg);
+            lin_vel = vs->getLinearVelocity();
+            ROS_INFO("ang_vel 1: %f", ang_vel);
+            //ROS_INFO("lin_vel 1: %f", lin_vel);
+
+            geometry_msgs::PoseStamped goal_in_fp;
+            /*if(new_plan){
+                ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
+                tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
+                
+                vs->emptySet();
+                vs->setAttractors(goal_in_fp);
+                double ang_vel_ = vs->getAngularVelocity(strength_attractors_angular_velocity);
+                ROS_INFO("ang_vel 2: %f", ang_vel_);
+                ang_vel += ang_vel_;
+            }*/
             
-            lin_vel = vs->getLinearVelocity(); //COMMENTARE IN BASE AL METODO DI VELOCITÀ SCELTA
-
-            //double linear_velocity = lin_vel_attr;
-            //double linear_velocity = std::max(0.0, normalizeLinearVelocities(lin_vel_rep, lin_vel_attr));
-
-            // + 0.5*(2*((ang_vel_attr-(-potential_strength))/(2*potential_strength))-1.0); //normalizzo tra -1 e 1 
-            //se ho 1 solo attrattore la velocità massima angolare è uguale a potential_strength (non c'è somma tra più pot_objects) 
-
             if(ns_active){
-                //ROS_INFO("ang_vel REP: %f, ang_vel ATTR: %f", ang_vel1, ang_vel2);
 
                 geometry_msgs::Twist cmd_vel;
                 if(new_plan){
-                    ROS_INFO("got new plan");
+                    //ROS_INFO("got new plan");
                     cmd_vel.linear.x = lin_vel*linear_scaling;
                     //cmd_vel.linear.x = 0.0;
                 }
                 else{
                     cmd_vel.linear.x = 0.0;
                 }
-                cmd_vel.angular.z = ang_vel*angular_scaling;
+                cmd_vel.angular.z = ang_vel*angular_scaling;//std::max(std::min(1.0, ang_vel*angular_scaling), -1.0);
+                
                 velocity_pub_.publish(cmd_vel);
             }
             new_costmap = false;

@@ -54,8 +54,8 @@
             <remap from="cmd_vel_out" to="cmd_vel"/>
         </node>
         
-    <!-- tag detection and camera-->
-        <include file="$(find nav_master)/launch/apriltag_detection.launch"/>
+    <!-- tag detection and camera
+        <include file="$(find nav_master)/launch/apriltag_detection.launch"/>-->
 
     <!--rviz-->
         <node name="rviz" pkg="rviz" type="rviz" args="-d $(find nav_master)/init.rviz" required="true"/>

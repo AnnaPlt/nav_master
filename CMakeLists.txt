@@ -18,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf2_geometry_msgs
   tf2_ros
+  cv_bridge
+  sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -28,6 +30,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
 catkin_python_setup()
 
+find_package(OpenCV REQUIRED)
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
@@ -113,12 +116,14 @@ catkin_python_setup()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES pathSampler navigationStack local_costmap 
-  CATKIN_DEPENDS artificial_potential_fields costmap_2d geometry_msgs pluginlib roscpp roscpp std_msgs tf2_ros tf2_geometry_msgs dynamic_reconfigure message_runtime
+  CATKIN_DEPENDS artificial_potential_fields costmap_2d geometry_msgs pluginlib roscpp roscpp std_msgs tf2_ros 
+  tf2_geometry_msgs dynamic_reconfigure message_runtime sensor_msgs cv_bridge
 )
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 
@@ -155,6 +160,7 @@ target_link_libraries(local_costmap
 
 target_link_libraries(navigationStack 
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
 )
 
 

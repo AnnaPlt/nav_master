@@ -19,6 +19,10 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <eigen3/Eigen/Dense>
+#include <sensor_msgs/Image.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/opencv.hpp>
 #include </mnt/data/anna/anna_ws/devel/include/artificial_potential_fields/apfParamsConfig.h>
 
 
@@ -34,7 +38,7 @@ namespace navigation_stack{
             void run();
 
         private:
-            
+            sensor_msgs::ImagePtr eigenMatrixToImageMsg(const Eigen::MatrixXd& mat);
             void onReceiveCostmap(nav_msgs::OccupancyGrid msg);
             void onReceiveJoy(const sensor_msgs::Joy::ConstPtr& msg);
             void onReceivePath(const nav_msgs::Path& msg);
@@ -93,7 +97,9 @@ namespace navigation_stack{
             double max_angle;
             double min_distance;
             double rod;
+            double strength_attractors_angular_velocity;
             std::string VS_frame_id;
+
             
             //utility and init
             void updateParams(artificial_potential_fields::apfParamsConfig &config);
@@ -105,6 +111,8 @@ namespace navigation_stack{
             double normalizeLinearVelocities(double lin_vel_rep, double lin_vel_attr);
             bool ns_active;
             bool new_plan;
+            ros::Publisher img_pub;
+
             geometry_msgs::PoseStamped goal_pose;
             
     };
