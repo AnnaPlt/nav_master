@@ -267,7 +267,7 @@ void NavigationStack::run(){
 
             matrix_pub.publish(msg);
             //omegaAll = 2*(omegaAll.array() - omegaAll.minCoeff()) / (omegaAll.maxCoeff() - omegaAll.minCoeff())-1;
-            /*std::ofstream file("matrice.csv");
+            std::ofstream file("matrice.csv");
             if (file.is_open()) {
                 for (int i = 0; i < omegaAll.rows(); ++i) {
                     for (int j = 0; j < omegaAll.cols(); ++j) {
@@ -280,7 +280,7 @@ void NavigationStack::run(){
                 file.close();
             } else {
                 std::cerr << "Impossibile aprire il file!" << std::endl;
-            }*/
+            }
             ang_vel = vs->getAngularVelocity(omegaAll, 1.0);
 
             lin_vel = vs->getLinearVelocity();
