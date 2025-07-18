@@ -42,7 +42,7 @@ namespace navigation_stack{
             sensor_msgs::ImagePtr eigenMatrixToImageMsg(const Eigen::MatrixXd& mat);
             void onReceiveCostmap(nav_msgs::OccupancyGrid msg);
             void onReceiveJoy(const sensor_msgs::Joy::ConstPtr& msg);
-            void onReceivePath(const nav_msgs::Path& msg);
+            void onReceivePath(const nav_msgs::Path::ConstPtr& msg);
             void onReceiveNavResult(const std_msgs::Bool::ConstPtr& msg);
             void buildPolarMap();
 
@@ -62,6 +62,7 @@ namespace navigation_stack{
             ros::Publisher plan_pub_;
             ros::Subscriber nav_result_sub_;
             ros::Publisher matrix_pub;
+            ros::Publisher img_pub;
             
 
             //costmap
@@ -109,11 +110,12 @@ namespace navigation_stack{
             void init_VirtualSensors();
             void init_Communication();
             void util_sendStopMsg();
+            void util_sendField(Eigen::MatrixXd omegaAll);
             void setMaxVelocities();
             double normalizeLinearVelocities(double lin_vel_rep, double lin_vel_attr);
             bool ns_active;
             bool new_plan;
-            ros::Publisher img_pub;
+            
 
             geometry_msgs::PoseStamped goal_pose;
             

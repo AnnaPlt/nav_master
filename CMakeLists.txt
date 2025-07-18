@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
   cv_bridge
   sensor_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -63,11 +64,11 @@ find_package(OpenCV REQUIRED)
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
+add_service_files(
+    FILES
+    endPoint.srv
 #   Service2.srv
-# )
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -77,10 +78,11 @@ find_package(OpenCV REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   geometry_msgs#   nav_msgs#   std_msgs#   tf2_geometry_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -97,10 +99,10 @@ find_package(OpenCV REQUIRED)
 ##     and list every .cfg file to be processed
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
+generate_dynamic_reconfigure_options(
+    cfg/mpcParams.cfg
+#   fg/DynReconf2.cfg
+)
 
 ###################################
 ## catkin specific configuration ##
@@ -115,7 +117,7 @@ find_package(OpenCV REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES pathSampler navigationStack local_costmap 
+  LIBRARIES pathSampler navigationStack local_costmap set_end_point
   CATKIN_DEPENDS artificial_potential_fields costmap_2d geometry_msgs pluginlib roscpp roscpp std_msgs tf2_ros 
   tf2_geometry_msgs dynamic_reconfigure message_runtime sensor_msgs cv_bridge
 )
@@ -130,6 +132,7 @@ include_directories(
 add_executable(main src/main.cpp)
 add_executable(goal_send src/goal_send.cpp)
 add_executable(local_costmap src/local_costmap.cpp)
+add_executable(set_end_point src/set_end_point.cpp)
 
 target_link_libraries(main 
   ${catkin_LIBRARIES}
@@ -141,13 +144,16 @@ target_link_libraries(goal_send
   ${catkin_LIBRARIES}
 )
 
+target_link_libraries(set_end_point 
+  ${catkin_LIBRARIES}
+)
+
 add_library(pathSampler
   src/pathSampler.cpp
 )
 
 add_library(navigationStack
   src/navigationStack.cpp)
-
 
 
 target_link_libraries(pathSampler
@@ -162,5 +168,6 @@ target_link_libraries(navigationStack
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
+
 
 

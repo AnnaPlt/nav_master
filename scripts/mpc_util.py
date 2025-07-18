@@ -16,19 +16,19 @@ class MPCUtil:
         self.vel_w_max_n    = -0.3
 
         # Radius of the weelchair
-        self.radius = 6.9 # [m]
+        self.radius = 1.0 # [m]
 
         # Number of steps
-        self.n_horizon = 60
+        self.n_horizon = 40
 
         # The parameters of the cost functions
-        self.Qx     = np.array([3,3,0, 2.2])
-        self.QxN    = np.array([140,140,1, -1])
+        self.Qx     = np.array([5,5,1, 8])  # x, y, theta, obstacle distance
+        self.QxN    = np.array([150,150,10, 5]) # terminal cost
 
         # The weigth that lead the mpc to give discrete output
         self.Cp     = np.array([-1e-3,1e-1])
         # The "difficulty" of changig the input
-        self.R      = np.array([1e-2,5e-4]) 
+        self.R      = np.array([0.1, 0.05])   # più fluido se R alta, ma anche meno reattivo
 
     def get_model(self, Ts):
         ## Create the model needed to evaluate mpc controller

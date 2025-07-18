@@ -37,7 +37,7 @@
         <include file="$(find wheelchair_iaslab_odometry)/launch/odometry.launch"/> 
 
     <!-- costmap -->
-        <rosparam file="$(find nav_master)/config/local_costmap_st.yaml" command="load" ns="local_costmap" />
+        <rosparam file="$(find nav_master)/cfg/local_costmap_st.yaml" command="load" ns="local_costmap" />
 
         <node name="local_costmap" pkg="nav_master" type="local_costmap" output="screen">
             <param name="global_frame" value="odom"/>

@@ -9,25 +9,17 @@ import std_msgs.msg
 import mpc_util
 import time
 import tf2_ros, tf2_geometry_msgs
+from nav_master.srv import endPoint, endPointResponse
+from dynamic_reconfigure.server import Server
+#from nav_master.config import mpcParamsConfig
 
 class ModelPredictiveControl:
     def __init__(self) :
         rospy.init_node("model_predictive_control")
 
-        #params
-        self.distance_between_objects_points_to_accept = rospy.get_param("~distance_between_objects_points_to_accept", 0.35) # [m]
-        self.distance_between_objects_points = rospy.get_param("~distance_between_objects_points", 2.5)  # [m]
-        self.time_between_controllers = rospy.get_param("~time_between_controllers", 1.0) # [s] 
-        self.object_point_survive_time = rospy.get_param("~object_point_survive_time", 15.0)   # [s]
-        self.max_num_obstacles = rospy.get_param("~max_num_obstacles", 50)
-        self.command_future_view = rospy.get_param("~command_future_view", 12)
-        self.Ts = rospy.get_param("~Ts", 0.2)
-        self.distance_to_goal = rospy.get_param("~distance_to_goal", 0.5)
-        self.frame_id_mpc = rospy.get_param("~frame_id_mpc", "odom")
-
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
+        self.dynamic_callback()
         self.mpc_util = mpc_util.MPCUtil()
         self.model = self.mpc_util.get_model(self.Ts)
         
@@ -38,12 +30,22 @@ class ModelPredictiveControl:
 
         # Subscribers
         self.odometry_sub = rospy.Subscriber("/odometry/filtered", nav_msgs.msg.Odometry, self.onReceiveOdometry)
-        self.goal_sub = rospy.Subscriber("/goal", geometry_msgs.msg.PoseStamped, self.onReceiveGoal)
+        service = rospy.Service("/end_point_service", endPoint, self.onReceiveGoal)
         self.obstacles_sub = rospy.Subscriber("/scan_polar_map", sensor_msgs.msg.LaserScan, self.onReceiveObstacles)
+        #srv_config = Server(mpcParamsConfig, self.dynamic_callback)
 
         # Publishers
         self.plan_pub = rospy.Publisher("/mpc_plan", nav_msgs.msg.Path, queue_size=1)
         self.pub_result = rospy.Publisher("/goal_reached", std_msgs.msg.Bool, queue_size=1)
+
+    def dynamic_callback(self):
+        self.time_between_controllers = rospy.get_param("~time_between_controllers", 1.0) # [s] 
+        self.object_point_survive_time = rospy.get_param("~object_point_survive_time", 15.0)   # [s]
+        self.max_num_obstacles = rospy.get_param("~max_num_obstacles", 50)
+        self.command_future_view = rospy.get_param("~command_future_view", 12)
+        self.Ts = rospy.get_param("~Ts", 0.1)
+        self.distance_to_goal = rospy.get_param("~distance_to_goal", 0.5)
+        self.frame_id_mpc = rospy.get_param("~frame_id_mpc", "odom")
 
     def onReceiveOdometry(self, msg):
         # Process odometry data
@@ -55,15 +57,18 @@ class ModelPredictiveControl:
         return
     
 
-    def onReceiveGoal(self, msg):
-        if(msg.header.frame_id != self.frame_id_mpc):
-            rospy.logwarn("Goal frame id does not match the MPC frame id. Expected: {}, Received: {}".format(self.frame_id_mpc, msg.header.frame_id))
-            return
-        self.goal = self.mpc_util.convert_pose_data_to_state(msg)
+    def onReceiveGoal(self, req):
+        end_point = req.end_point
+        if(end_point.header.frame_id != self.frame_id_mpc):
+            rospy.loginfo("frame id of end point is not {}".format(self.frame_id_mpc))
+            return endPointResponse(success=False)
+
+        self.goal = self.mpc_util.convert_pose_data_to_state(end_point)
         self.new_goal = True
         rospy.loginfo("New goal received: {}".format(self.goal))
         
-        return
+        return endPointResponse(success=True)
+    
     
     def onReceiveObstacles(self, msg):
         laser_ranges = np.array(msg.ranges)
@@ -83,7 +88,7 @@ class ModelPredictiveControl:
 
 
             #convert to odom frame id
-            transform = self.tf_buffer.lookup_transform("odom", msg.header.frame_id, rospy.Time(0), rospy.Duration(1.0))
+            transform = self.tf_buffer.lookup_transform(self.frame_id_mpc, msg.header.frame_id, rospy.Time(0), rospy.Duration(1.0))
             obj_in_odom = tf2_geometry_msgs.do_transform_point(geometry_msgs.msg.PointStamped(header=msg.header, point=geometry_msgs.msg.Point(x=x, y=y, z=0)), transform)
 
             new_obj = [obj_in_odom.point.x, obj_in_odom.point.y, current_time]

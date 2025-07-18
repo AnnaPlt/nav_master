@@ -67,28 +67,6 @@ void NavigationStack::init_Communication(){
 }
 
 
-void NavigationStack::setMaxVelocities(){
-
-    const double delta_alpha = M_PI / 180.0;
-    /*double result_angular = 0.0;
-
-    for (double alpha = -M_PI; alpha < M_PI; alpha += delta_alpha) {
-        double f = vs->ap_field.kernel(alpha);
-        result_angular += std::abs(f);
-    }
-    maxAngularVelocity = result_angular;
-    //ROS_INFO("max Angular Velocity set to: %f", maxAngularVelocity);*/
-
-    double min_radius = 1.2;
-    double result_linear = 0.0;
-    for (double alpha = -max_angle; alpha < max_angle; alpha += delta_alpha){
-        double l = std::max(0.0, (max_angle - std::abs(alpha))/max_angle);
-        result_linear += l;
-    }
-    maxLinearVelocityRepulsors = result_linear*1/min_radius;
-    //ROS_INFO("max Linear Velocity Repulsors set to: %f", maxLinearVelocityRepulsors);
-}
-
 
 void NavigationStack::onReceiveNavResult(const std_msgs::Bool::ConstPtr& msg) {
     if(msg->data){
@@ -99,18 +77,15 @@ void NavigationStack::onReceiveNavResult(const std_msgs::Bool::ConstPtr& msg) {
 }
 
 
-void NavigationStack::onReceivePath(const nav_msgs::Path& msg) {
+void NavigationStack::onReceivePath(const nav_msgs::Path::ConstPtr& msg) {
     
-    sampled_plan = path_sampler.getSampledPlan(sampling_distance, msg);
+    sampled_plan = path_sampler.getSampledPlan(sampling_distance, *msg);
     
     //ROS_INFO("Received new path with %lu poses", sampled_plan.poses.size());
-    sampled_plan.header.frame_id = msg.header.frame_id;
+    sampled_plan.header.frame_id = msg->header.frame_id;
     plan_pub_.publish(sampled_plan);
     goal_pose = sampled_plan.poses.back(); // l'ultimo goal è l'ultimo della path
-    //ROS_INFO("Goal pose set to: [%f, %f]", goal_pose.pose.position.x, goal_pose.pose.position.y);
-    //ts = tf_.lookupTransform("odom", msg.header.frame_id, ros::Time(0), ros::Duration(1.0));
-    //tf2::doTransform(goal_pose, goal_pose, ts); // trasformo goal in odom frame
-    //uso mpc per ottenere un path e lo metto in mpc_plan
+
     new_plan = true;
 }
 
@@ -174,9 +149,12 @@ void NavigationStack::buildPolarMap(){
 
 sensor_msgs::ImagePtr NavigationStack::eigenMatrixToImageMsg(const Eigen::MatrixXd& mat) {
     // Normalizza valori in [0,255]
-    double min = mat.minCoeff();
-    double max = mat.maxCoeff();
-    Eigen::MatrixXd norm =  (mat.array() - min)*255;  // evita divisione per zero
+    Eigen::MatrixXd norm = Eigen::MatrixXd::Zero(mat.rows(), mat.cols());
+    double max = mat.cwiseAbs().maxCoeff();
+    if (max > 1.0){
+        norm = mat/max;
+    }
+    norm = (norm.array()-norm.minCoeff())*255;
     
     // Converti in cv::Mat mono 8 bit
     cv::Mat gray(mat.rows(), mat.cols(), CV_8UC1);
@@ -218,56 +196,46 @@ void NavigationStack::util_sendStopMsg(){
     velocity_pub_.publish(stop_msg);
 }
 
+void NavigationStack::util_sendField(Eigen::MatrixXd omegaAll){
+    std_msgs::Float64MultiArray msg;
 
-double NavigationStack::normalizeLinearVelocities(double lin_vel_rep, double lin_vel_attr) {
-    //ROS_INFO("linear velocity repellor normalized: %f", (2*((lin_vel_rep-(-maxLinearVelocityRepulsors))/(2*maxLinearVelocityRepulsors))-1.0) );
-    //ROS_INFO("linear velocity attractor normalized: %f", (2*((lin_vel_attr-(-max_radius))/(2*max_radius))-1.0));
-    double linear_velocity = (2*((lin_vel_rep-(-maxLinearVelocityRepulsors))/(2*maxLinearVelocityRepulsors))-1.0) 
-                + (2*((lin_vel_attr-(-max_radius))/(2*max_radius))-1.0);
+    // riempi i dati: Eigen::MatrixXd è row-major o column-major, ma per semplicità:
+    for(int r = 0; r < omegaAll.rows(); ++r) {
+        for(int c = 0; c < omegaAll.cols(); ++c) {
+            msg.data.push_back(omegaAll(r, c));
+        }
+    }
 
-    return linear_velocity;
+    // opzionalmente: msg.layout.dim per indicare righe/colonne
+    msg.layout.dim.resize(2);
+    msg.layout.dim[0].label = "rows";
+    msg.layout.dim[0].size = omegaAll.rows();
+    msg.layout.dim[0].stride = omegaAll.rows() * omegaAll.cols();
+    msg.layout.dim[1].label = "cols";
+    msg.layout.dim[1].size = omegaAll.cols();
+    msg.layout.dim[1].stride = omegaAll.cols();
+
+    matrix_pub.publish(msg);
 }
 
 void NavigationStack::run(){
 
-    ros::Rate r(2);
-    ros::Time last_map = ros::Time::now();
+    ros::Rate r(30);
     ros::Time last_goal = ros::Time::now();
     while(ros::ok()){
         if (new_costmap) {
-            last_map = ros::Time::now();
 
             buildPolarMap();
             util_sendLaserMsg();
 
             double lin_vel = 0.0;
             double ang_vel = 0.0;
-
-            
+   
             vs->emptySet();
             vs->setRepellors(polar_map);
-            Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
-            std_msgs::Float64MultiArray msg;
-
-            // riempi i dati: Eigen::MatrixXd è row-major o column-major, ma per semplicità:
-            for(int r = 0; r < omegaAll.rows(); ++r) {
-                for(int c = 0; c < omegaAll.cols(); ++c) {
-                    msg.data.push_back(omegaAll(r, c));
-                }
-            }
-
-            // opzionalmente: msg.layout.dim per indicare righe/colonne
-            msg.layout.dim.resize(2);
-            msg.layout.dim[0].label = "rows";
-            msg.layout.dim[0].size = omegaAll.rows();
-            msg.layout.dim[0].stride = omegaAll.rows() * omegaAll.cols();
-            msg.layout.dim[1].label = "cols";
-            msg.layout.dim[1].size = omegaAll.cols();
-            msg.layout.dim[1].stride = omegaAll.cols();
-
-            matrix_pub.publish(msg);
-            //omegaAll = 2*(omegaAll.array() - omegaAll.minCoeff()) / (omegaAll.maxCoeff() - omegaAll.minCoeff())-1;
-            std::ofstream file("matrice.csv");
+            //Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
+            
+            /*std::ofstream file("matrice.csv");
             if (file.is_open()) {
                 for (int i = 0; i < omegaAll.rows(); ++i) {
                     for (int j = 0; j < omegaAll.cols(); ++j) {
@@ -280,24 +248,21 @@ void NavigationStack::run(){
                 file.close();
             } else {
                 std::cerr << "Impossibile aprire il file!" << std::endl;
-            }
-            ang_vel = vs->getAngularVelocity(omegaAll, 1.0);
-
+            }*/
+            //img_pub.publish(eigenMatrixToImageMsg(omegaAll));
+            ang_vel = vs->getAngularVelocity(1.0);
             lin_vel = vs->getLinearVelocity();
-            ROS_INFO("ang_vel 1: %f", ang_vel);
-            //ROS_INFO("lin_vel 1: %f", lin_vel);
 
             geometry_msgs::PoseStamped goal_in_fp;
-            /*if(new_plan){
+            if(new_plan){
                 ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
                 tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
                 
                 vs->emptySet();
                 vs->setAttractors(goal_in_fp);
                 double ang_vel_ = vs->getAngularVelocity(strength_attractors_angular_velocity);
-                ROS_INFO("ang_vel 2: %f", ang_vel_);
                 ang_vel += ang_vel_;
-            }*/
+            }
             
             if(ns_active){
 
@@ -327,3 +292,5 @@ void NavigationStack::run(){
 }
 
 }
+
+

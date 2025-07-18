@@ -18,7 +18,7 @@
     <param name="queue_size" type="int" value="$(arg queue_size)" />
 
     <!-- load parameters (incl. tag family, tags, etc.) -->
-    <rosparam command="load" file="$(find nav_master)/config/tag_settings.yaml"/>
-    <rosparam command="load" file="$(find nav_master)/config/tag_description.yaml"/>
+    <rosparam command="load" file="$(find nav_master)/cfg/tag_settings.yaml"/>
+    <rosparam command="load" file="$(find nav_master)/cfg/tag_description.yaml"/>
   </node>
 </launch>
