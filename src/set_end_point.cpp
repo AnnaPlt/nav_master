@@ -23,7 +23,7 @@ namespace set_end_point{
         double lr = msg->axes[0];
         v = lr*0.1;
         if (msg->buttons[5] == 1){
-                v = 0.0;
+            v = 0.0;
             end_point_current.pose.position.y = 0.0;
         }    
     }
@@ -48,6 +48,7 @@ namespace set_end_point{
         geometry_msgs::TransformStamped transformStamped = tfBuffer.lookupTransform("odom", new_end_point.header.frame_id, ros::Time(0), ros::Duration(1.0));
         tf2::doTransform(new_end_point, new_end_point_odom, transformStamped);
         end_point_pub_.publish(new_end_point_odom);
+        
     }
 
 

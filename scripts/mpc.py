@@ -24,7 +24,7 @@ class ModelPredictiveControl:
         self.model = self.mpc_util.get_model(self.Ts)
         
         self.new_goal = False
-        self.goal = None
+        self.goal = [2.0, 0.0, 0.0, 0.0, 0.0]
         self.odom = []
         self.obstacles = []
 
@@ -32,6 +32,7 @@ class ModelPredictiveControl:
         self.odometry_sub = rospy.Subscriber("/odometry/filtered", nav_msgs.msg.Odometry, self.onReceiveOdometry)
         service = rospy.Service("/end_point_service", endPoint, self.onReceiveGoal)
         self.obstacles_sub = rospy.Subscriber("/scan_polar_map", sensor_msgs.msg.LaserScan, self.onReceiveObstacles)
+        self.goal_pub = rospy.Publisher("/goal", geometry_msgs.msg.PoseStamped, queue_size=1)
         #srv_config = Server(mpcParamsConfig, self.dynamic_callback)
 
         # Publishers
@@ -63,7 +64,12 @@ class ModelPredictiveControl:
             rospy.loginfo("frame id of end point is not {}".format(self.frame_id_mpc))
             return endPointResponse(success=False)
 
-        self.goal = self.mpc_util.convert_pose_data_to_state(end_point)
+        new_goal = self.mpc_util.convert_pose_data_to_state(end_point)
+        if(np.sqrt((new_goal[0]-self.goal[0])**2 + (new_goal[1]-self.goal[1])**2) < self.distance_to_goal):
+            return endPointResponse(success=False)
+        
+        self.goal = new_goal
+        self.goal_pub.publish(end_point)
         self.new_goal = True
         rospy.loginfo("New goal received: {}".format(self.goal))
         

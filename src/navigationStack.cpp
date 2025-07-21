@@ -124,7 +124,7 @@ void NavigationStack::buildPolarMap(){
     double yaw =  tf::getYaw(ts.transform.rotation);
     if(std::abs(yaw)<0.0175) yaw = 0.0;
 
-    for(int theta = 0; theta < 360; theta += delta){
+    for(int theta = -180; theta < 180; theta += delta){
         for(double r = 0.0; r < max_radius; r+=0.05){
 
             double x = r*cos(theta*M_PI/180.0 + yaw );
@@ -137,7 +137,7 @@ void NavigationStack::buildPolarMap(){
                 int indx = y_cell * costmap_.width + x_cell;
 
                 if(costmap_.occupancy_data[indx] > cost_obstacle){
-                    polar_map[theta] = r; //rispetto footprint
+                    polar_map[theta+180] = r; //rispetto footprint
                     break;
                 }
             }
@@ -222,6 +222,8 @@ void NavigationStack::run(){
 
     ros::Rate r(30);
     ros::Time last_goal = ros::Time::now();
+    double ang_vel0 = 0.0;
+
     while(ros::ok()){
         if (new_costmap) {
 
@@ -230,10 +232,57 @@ void NavigationStack::run(){
 
             double lin_vel = 0.0;
             double ang_vel = 0.0;
-   
-            vs->emptySet();
+            
+            vs->reset();
+
+            geometry_msgs::PoseStamped goal_in_fp;
+            if(new_plan){
+                ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
+                tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
+                
+                vs->setAttractors(goal_in_fp);
+                ang_vel += vs->getAngularVelocity(strength_attractors_angular_velocity);
+            }
+            ros::Time start = ros::Time::now();
             vs->setRepellors(polar_map);
-            //Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
+            ROS_INFO("Time to set repellors: %f ms", (ros::Time::now() - start).toSec()*1000.0);
+            
+            ang_vel += vs->getAngularVelocity(1.0);
+            lin_vel = vs->getLinearVelocity();
+
+            geometry_msgs::Twist cmd_vel;
+            if(ns_active){
+                
+                if(new_plan){
+                    //ROS_INFO("got new plan");
+                    cmd_vel.linear.x = lin_vel*linear_scaling;
+                    //cmd_vel.linear.x = 0.0;
+                }
+                else{
+                    cmd_vel.linear.x = 0.0;
+                }
+                cmd_vel.angular.z = (ang_vel0+ang_vel)*angular_scaling;//std::max(std::min(1.0, ang_vel*angular_scaling), -1.0);
+                
+                velocity_pub_.publish(cmd_vel);
+            }
+            
+            ang_vel0 = ang_vel;
+            new_costmap = false;
+            
+
+        }
+
+        ros::spinOnce();
+        r.sleep();
+
+    }
+
+}
+
+}
+
+
+//Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
             
             /*std::ofstream file("matrice.csv");
             if (file.is_open()) {
@@ -250,47 +299,3 @@ void NavigationStack::run(){
                 std::cerr << "Impossibile aprire il file!" << std::endl;
             }*/
             //img_pub.publish(eigenMatrixToImageMsg(omegaAll));
-            ang_vel = vs->getAngularVelocity(1.0);
-            lin_vel = vs->getLinearVelocity();
-
-            geometry_msgs::PoseStamped goal_in_fp;
-            if(new_plan){
-                ts = tf_.lookupTransform("base_footprint", goal_pose.header.frame_id, ros::Time(0), ros::Duration(1.0));
-                tf2::doTransform(goal_pose, goal_in_fp, ts); // trasformo goal in odom frame
-                
-                vs->emptySet();
-                vs->setAttractors(goal_in_fp);
-                double ang_vel_ = vs->getAngularVelocity(strength_attractors_angular_velocity);
-                ang_vel += ang_vel_;
-            }
-            
-            if(ns_active){
-
-                geometry_msgs::Twist cmd_vel;
-                if(new_plan){
-                    //ROS_INFO("got new plan");
-                    cmd_vel.linear.x = lin_vel*linear_scaling;
-                    //cmd_vel.linear.x = 0.0;
-                }
-                else{
-                    cmd_vel.linear.x = 0.0;
-                }
-                cmd_vel.angular.z = ang_vel*angular_scaling;//std::max(std::min(1.0, ang_vel*angular_scaling), -1.0);
-                
-                velocity_pub_.publish(cmd_vel);
-            }
-            new_costmap = false;
-            
-
-        }
-
-        ros::spinOnce();
-        r.sleep();
-
-    }
-
-}
-
-}
-
-
