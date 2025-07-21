@@ -24,7 +24,7 @@ class ModelPredictiveControl:
         self.model = self.mpc_util.get_model(self.Ts)
         
         self.new_goal = False
-        self.goal = None
+        self.goal = [2.0, 0.0, 0.0, 0.0, 0.0]
         self.odom = []
         self.obstacles = []
 
@@ -63,7 +63,11 @@ class ModelPredictiveControl:
             rospy.loginfo("frame id of end point is not {}".format(self.frame_id_mpc))
             return endPointResponse(success=False)
 
-        self.goal = self.mpc_util.convert_pose_data_to_state(end_point)
+        new_goal = self.mpc_util.convert_pose_data_to_state(end_point)
+        if(np.sqrt((new_goal[0]-self.goal[0])**2 + (new_goal[1]-self.goal[1])**2) < self.distance_to_goal):
+            return endPointResponse(success=False)
+        
+        self.goal = new_goal
         self.new_goal = True
         rospy.loginfo("New goal received: {}".format(self.goal))
         

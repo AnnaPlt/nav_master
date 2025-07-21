@@ -222,6 +222,7 @@ void NavigationStack::run(){
 
     ros::Rate r(30);
     ros::Time last_goal = ros::Time::now();
+    double ang_vel0 = 0.0;
     while(ros::ok()){
         if (new_costmap) {
 
@@ -230,7 +231,7 @@ void NavigationStack::run(){
 
             double lin_vel = 0.0;
             double ang_vel = 0.0;
-   
+            
             vs->emptySet();
             vs->setRepellors(polar_map);
             //Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
@@ -250,7 +251,7 @@ void NavigationStack::run(){
                 std::cerr << "Impossibile aprire il file!" << std::endl;
             }*/
             //img_pub.publish(eigenMatrixToImageMsg(omegaAll));
-            ang_vel = vs->getAngularVelocity(1.0);
+            ang_vel += vs->getAngularVelocity(1.0);
             lin_vel = vs->getLinearVelocity();
 
             geometry_msgs::PoseStamped goal_in_fp;
@@ -260,13 +261,12 @@ void NavigationStack::run(){
                 
                 vs->emptySet();
                 vs->setAttractors(goal_in_fp);
-                double ang_vel_ = vs->getAngularVelocity(strength_attractors_angular_velocity);
-                ang_vel += ang_vel_;
+                ang_vel += vs->getAngularVelocity(strength_attractors_angular_velocity);
             }
-            
+            geometry_msgs::Twist cmd_vel;
             if(ns_active){
 
-                geometry_msgs::Twist cmd_vel;
+                
                 if(new_plan){
                     //ROS_INFO("got new plan");
                     cmd_vel.linear.x = lin_vel*linear_scaling;
@@ -275,10 +275,12 @@ void NavigationStack::run(){
                 else{
                     cmd_vel.linear.x = 0.0;
                 }
-                cmd_vel.angular.z = ang_vel*angular_scaling;//std::max(std::min(1.0, ang_vel*angular_scaling), -1.0);
+                cmd_vel.angular.z = (ang_vel0+ang_vel)*angular_scaling;//std::max(std::min(1.0, ang_vel*angular_scaling), -1.0);
                 
                 velocity_pub_.publish(cmd_vel);
             }
+            ROS_INFO("angular vel: %f", (ang_vel0+ang_vel)*angular_scaling);
+            ang_vel0 = ang_vel;
             new_costmap = false;
             
 

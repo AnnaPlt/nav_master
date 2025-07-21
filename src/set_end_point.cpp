@@ -23,7 +23,7 @@ namespace set_end_point{
         double lr = msg->axes[0];
         v = lr*0.1;
         if (msg->buttons[5] == 1){
-                v = 0.0;
+            v = 0.0;
             end_point_current.pose.position.y = 0.0;
         }    
     }

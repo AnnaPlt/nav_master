@@ -63,8 +63,7 @@
     <!-- reconfigure params -->
         <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" />
 
-    <!-- mpc -->
+    <!-- mpc --> 
         <node name="mpc" pkg="nav_master" type="mpc.py" />
-
 
 </launch>
