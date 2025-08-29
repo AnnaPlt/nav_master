@@ -69,7 +69,10 @@ class ModelPredictiveControl:
             return endPointResponse(success=False)
         
         self.goal = new_goal
+<<<<<<< HEAD
         self.goal_pub.publish(end_point)
+=======
+>>>>>>> d83c168ade52c077974e06b2dff40b77af4ce8ce
         self.new_goal = True
         rospy.loginfo("New goal received: {}".format(self.goal))
         

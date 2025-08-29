@@ -223,7 +223,10 @@ void NavigationStack::run(){
     ros::Rate r(30);
     ros::Time last_goal = ros::Time::now();
     double ang_vel0 = 0.0;
+<<<<<<< HEAD
 
+=======
+>>>>>>> d83c168ade52c077974e06b2dff40b77af4ce8ce
     while(ros::ok()){
         if (new_costmap) {
 
@@ -232,8 +235,33 @@ void NavigationStack::run(){
 
             double lin_vel = 0.0;
             double ang_vel = 0.0;
+<<<<<<< HEAD
             
             vs->reset();
+=======
+            
+            vs->emptySet();
+            vs->setRepellors(polar_map);
+            //Eigen::MatrixXd omegaAll = vs->computeOmegaAll();
+            
+            /*std::ofstream file("matrice.csv");
+            if (file.is_open()) {
+                for (int i = 0; i < omegaAll.rows(); ++i) {
+                    for (int j = 0; j < omegaAll.cols(); ++j) {
+                        file << omegaAll(i, j);
+                        if (j != omegaAll.cols() - 1)
+                            file << ",";  // separatore
+                    }
+                    file << "\n";
+                }
+                file.close();
+            } else {
+                std::cerr << "Impossibile aprire il file!" << std::endl;
+            }*/
+            //img_pub.publish(eigenMatrixToImageMsg(omegaAll));
+            ang_vel += vs->getAngularVelocity(1.0);
+            lin_vel = vs->getLinearVelocity();
+>>>>>>> d83c168ade52c077974e06b2dff40b77af4ce8ce
 
             geometry_msgs::PoseStamped goal_in_fp;
             if(new_plan){
@@ -243,6 +271,7 @@ void NavigationStack::run(){
                 vs->setAttractors(goal_in_fp);
                 ang_vel += vs->getAngularVelocity(strength_attractors_angular_velocity);
             }
+<<<<<<< HEAD
             ros::Time start = ros::Time::now();
             vs->setRepellors(polar_map);
             ROS_INFO("Time to set repellors: %f ms", (ros::Time::now() - start).toSec()*1000.0);
@@ -252,6 +281,11 @@ void NavigationStack::run(){
 
             geometry_msgs::Twist cmd_vel;
             if(ns_active){
+=======
+            geometry_msgs::Twist cmd_vel;
+            if(ns_active){
+
+>>>>>>> d83c168ade52c077974e06b2dff40b77af4ce8ce
                 
                 if(new_plan){
                     //ROS_INFO("got new plan");
@@ -265,7 +299,11 @@ void NavigationStack::run(){
                 
                 velocity_pub_.publish(cmd_vel);
             }
+<<<<<<< HEAD
             
+=======
+            ROS_INFO("angular vel: %f", (ang_vel0+ang_vel)*angular_scaling);
+>>>>>>> d83c168ade52c077974e06b2dff40b77af4ce8ce
             ang_vel0 = ang_vel;
             new_costmap = false;
             
